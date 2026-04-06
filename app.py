@@ -408,6 +408,7 @@ def render_config_tab():
 
     st.divider()
     st.caption("Configuration priority: this tab > .env file > defaults")
+    st.warning("Only use test/development API keys here. For production, use .env file or Streamlit Secrets.", icon="⚠️")
 
 
 def main():
