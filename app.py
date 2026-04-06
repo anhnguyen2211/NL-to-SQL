@@ -10,13 +10,23 @@ from core.system import NLToSQLSystem
 load_dotenv()
 
 
+def get_llm_config() -> dict:
+    """Get LLM config from session state, falling back to env vars."""
+    return {
+        "api_key": st.session_state.get("api_key", os.getenv("OPENAI_API_KEY", "")),
+        "base_url": st.session_state.get("base_url", os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")),
+        "model": st.session_state.get("model", os.getenv("OPENAI_MODEL", "gpt-4o")),
+    }
+
+
 def init_system() -> NLToSQLSystem:
     db = DatabaseManager(":memory:")
     db.init_db()
+    config = get_llm_config()
     llm = LLMClient(
-        api_key=os.getenv("OPENAI_API_KEY", ""),
-        base_url=os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1"),
-        model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+        api_key=config["api_key"],
+        base_url=config["base_url"],
+        model=config["model"],
     )
     return NLToSQLSystem(llm=llm, validator=validate_and_enforce, db=db)
 
@@ -359,11 +369,54 @@ def render_flow_tab():
 
 
 
+def render_config_tab():
+    st.subheader("OpenAI Compatible API Configuration")
+
+    config = get_llm_config()
+
+    base_url = st.text_input(
+        "Base URL",
+        value=config["base_url"],
+        placeholder="https://api.openai.com/v1",
+    )
+    api_key = st.text_input(
+        "API Key",
+        value=config["api_key"],
+        type="password",
+        placeholder="sk-...",
+    )
+    model = st.text_input(
+        "Model",
+        value=config["model"],
+        placeholder="gpt-4o",
+    )
+
+    if st.button("Save & Reconnect", use_container_width=True):
+        if not api_key.strip():
+            st.error("API Key is required.")
+        elif not base_url.strip():
+            st.error("Base URL is required.")
+        elif not model.strip():
+            st.error("Model name is required.")
+        else:
+            st.session_state.api_key = api_key.strip()
+            st.session_state.base_url = base_url.strip()
+            st.session_state.model = model.strip()
+            # Force re-init system with new config
+            st.session_state.pop("system", None)
+            st.success(f"Connected to **{model}** at `{base_url}`")
+
+    st.divider()
+    st.caption("Configuration priority: this tab > .env file > defaults")
+
+
 def main():
     st.set_page_config(page_title="NL-to-SQL", page_icon="🔍", layout="wide")
     render_sidebar()
 
-    tab_chat, tab_db, tab_flow, tab_bonus = st.tabs(["Chat", "Database", "System Flow", "Design Notes"])
+    tab_chat, tab_db, tab_flow, tab_config, tab_bonus = st.tabs(
+        ["Chat", "Database", "System Flow", "Config", "Design Notes"]
+    )
 
     with tab_chat:
         render_chat_tab()
@@ -373,6 +426,9 @@ def main():
 
     with tab_flow:
         render_flow_tab()
+
+    with tab_config:
+        render_config_tab()
 
     with tab_bonus:
         render_bonus_tab()
