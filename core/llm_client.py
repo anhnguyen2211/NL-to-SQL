@@ -48,10 +48,15 @@ TOOL_DEFINITIONS = [
     }
 ]
 
+# TODO: Add relationship descriptions (FK mappings) to schema injection dynamically
+# from DB metadata, so LLM can infer JOINs without hardcoding.
 SYSTEM_PROMPT_TEMPLATE = """You are a precise SQL assistant for a SQLite database. Your ONLY job is to convert natural language questions into correct, safe SQL queries.
 
 ## Database Schema (ONLY these tables and columns exist)
 {schema}
+
+## Data Context (actual values in the database)
+{data_context}
 
 ## Strict Rules
 1. **Schema adherence:** ONLY use tables and columns listed above. If a column does not appear in the schema, it DOES NOT EXIST. Never guess or invent column names.
@@ -63,9 +68,10 @@ SYSTEM_PROMPT_TEMPLATE = """You are a precise SQL assistant for a SQLite databas
 4. **JOINs:** Always use explicit JOIN with clear table aliases (e.g., `customers AS c JOIN orders AS o ON c.id = o.customer_id`). Never use implicit comma joins.
 5. **No SELECT *:** Always list specific column names instead of `SELECT *`. This makes queries more readable and avoids returning unnecessary data.
 6. **Aggregations:** When using aggregate functions (COUNT, SUM, AVG, etc.), always include appropriate GROUP BY clause. Use meaningful aliases for computed columns (e.g., `COUNT(*) AS total_orders`).
-6. **NULL handling:** Use `IS NULL` / `IS NOT NULL`, never `= NULL`.
-7. **Ambiguity:** If the user's question is vague, references unknown entities, or could be interpreted multiple ways, call `ask_clarification` instead of guessing. It is better to ask than to return wrong results.
-8. **Always call a tool.** Never respond with plain text.
+7. **NULL handling:** Use `IS NULL` / `IS NOT NULL`, never `= NULL`.
+8. **Ranking/Top-N:** When the user asks for "top", "best", "most", "highest", or "lowest", always use ORDER BY + LIMIT. Example: "top 3 customers" → ORDER BY ... DESC LIMIT 3.
+9. **Ambiguity:** If the user's question is vague, references unknown entities, or could be interpreted multiple ways, call `ask_clarification` instead of guessing. It is better to ask than to return wrong results.
+10. **Always call a tool.** Never respond with plain text.
 
 ## Examples
 
@@ -83,6 +89,12 @@ Question: "Show me the data"
 Tool: ask_clarification
 Question: "Which data would you like to see?"
 Options: ["All customers", "All orders", "Customer order summary", "Other (please specify)"]
+
+Question: "Which customer bought the most?"
+WRONG: SELECT customer_id, COUNT(*) FROM orders GROUP BY customer_id ORDER BY COUNT(*) DESC LIMIT 1
+(Missing customer name — always JOIN to get human-readable data)
+CORRECT: SELECT c.name, COUNT(*) AS order_count FROM customers AS c JOIN orders AS o ON c.id = o.customer_id GROUP BY c.id, c.name ORDER BY order_count DESC LIMIT 1
+Explanation: Join to get customer name, count orders, return top 1
 """
 
 INTERPRET_PROMPT_TEMPLATE = """You are a data analyst presenting query results to a non-technical user.
@@ -95,10 +107,10 @@ Result rows ({row_count} total):
 {rows}
 
 ## Instructions
-1. **Answer directly.** Start with the key finding that answers the user's question. Do not say "Based on the query results..." — just answer.
-2. **Be specific.** Include actual numbers, names, and dates from the results. Round decimals to 2 places for currency.
-3. **Empty results:** If no rows returned, clearly state that no matching data was found and suggest possible reasons (e.g., "No customers found in Antarctica. The database contains customers from Vietnam, USA, Japan, and Spain.").
-4. **Large results:** If many rows, summarize the key insights (top/bottom, totals, trends) rather than listing every row.
+1. **Be concise.** Answer in 1-2 sentences max. No filler, no preamble, no "Based on the query results...".
+2. **Be specific.** Include actual numbers, names, and dates. Round currency to 2 decimal places.
+3. **Empty results:** State clearly that no data was found, in one sentence.
+4. **Large results:** Summarize key insights (top/bottom, totals) — do not list every row.
 5. **No raw SQL.** Never include SQL syntax in your answer.
 6. **Confidence score:** Rate how well the SQL query matches the user's intent:
    - 0.9-1.0: Query directly and precisely answers the question
@@ -117,8 +129,8 @@ class LLMClient:
 
     # TODO: Add retry logic — if SQL validation/execution fails, feed the error
     # back to the LLM and ask it to regenerate (max 2-3 retries).
-    def generate_sql(self, question: str, schema: str) -> dict:
-        system_prompt = SYSTEM_PROMPT_TEMPLATE.format(schema=schema)
+    def generate_sql(self, question: str, schema: str, data_context: str = "") -> dict:
+        system_prompt = SYSTEM_PROMPT_TEMPLATE.format(schema=schema, data_context=data_context or "No additional context available.")
 
         # Determinism: temperature=0 ensures the same question produces the same SQL
         # every time, which is critical for reproducibility, debugging, and evaluation.

@@ -113,6 +113,33 @@ class DatabaseManager:
 
         return "\n\n".join(schema_parts)
 
+    def get_data_context(self) -> str:
+        """Generate data context dynamically: distinct values for TEXT columns, date ranges for DATE columns."""
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+        tables = [row[0] for row in cursor.fetchall()]
+
+        context_parts = []
+        for table in tables:
+            cursor.execute(f"PRAGMA table_info({table})")
+            cols = cursor.fetchall()
+            for col in cols:
+                col_name, col_type = col[1], col[2].upper()
+                if col_name == "id" or col_name.endswith("_id"):
+                    continue
+                if "DATE" in col_type or col_name.endswith("_date"):
+                    cursor.execute(f"SELECT MIN({col_name}), MAX({col_name}) FROM {table}")
+                    row = cursor.fetchone()
+                    if row[0]:
+                        context_parts.append(f"- {table}.{col_name} range: {row[0]} to {row[1]}")
+                elif "TEXT" in col_type:
+                    cursor.execute(f"SELECT DISTINCT {col_name} FROM {table} ORDER BY {col_name}")
+                    values = [r[0] for r in cursor.fetchall() if r[0]]
+                    if len(values) <= 20:
+                        context_parts.append(f"- {table}.{col_name} values: {', '.join(values)}")
+
+        return "\n".join(context_parts) if context_parts else ""
+
     def get_tables_data(self) -> dict:
         cursor = self.conn.cursor()
         cursor.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")

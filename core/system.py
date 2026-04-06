@@ -17,10 +17,11 @@ class NLToSQLSystem:
             )
 
         schema = self.db.get_schema()
+        data_context = self.db.get_data_context()
 
         # Step 1: Generate SQL or clarification
         try:
-            llm_result = self.llm.generate_sql(question, schema)
+            llm_result = self.llm.generate_sql(question, schema, data_context)
         except Exception as e:
             error_msg = str(e)
             if "401" in error_msg or "api_key" in error_msg.lower() or "authentication" in error_msg.lower():
