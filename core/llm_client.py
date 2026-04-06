@@ -199,6 +199,7 @@ class LLMClient:
             return {
                 "answer": data.get("answer", text),
                 "confidence": float(data.get("confidence", 0.5)),
+                "interpret_prompt": prompt,
             }
         except (json.JSONDecodeError, ValueError):
-            return {"answer": text, "confidence": 0.5}
+            return {"answer": text, "confidence": 0.5, "interpret_prompt": prompt}

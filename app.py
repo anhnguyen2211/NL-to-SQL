@@ -184,8 +184,12 @@ def render_assistant_message(result: dict):
             st.markdown(result["explanation"])
 
     if result.get("system_prompt"):
-        with st.expander("System Prompt"):
+        with st.expander("SQL Generation Prompt"):
             st.code(result["system_prompt"], language="markdown")
+
+    if result.get("interpret_prompt"):
+        with st.expander("Interpret Prompt"):
+            st.code(result["interpret_prompt"], language="markdown")
 
     col1, col2 = st.columns(2)
     with col1:
