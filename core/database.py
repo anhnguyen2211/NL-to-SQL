@@ -113,32 +113,22 @@ class DatabaseManager:
 
         return "\n\n".join(schema_parts)
 
-    def get_data_context(self) -> str:
-        """Generate data context dynamically: distinct values for TEXT columns, date ranges for DATE columns."""
+    def get_data_context(self, sample_rows: int = 3) -> str:
+        """Show sample rows from each table so LLM understands the actual data format."""
         cursor = self.conn.cursor()
         cursor.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
         tables = [row[0] for row in cursor.fetchall()]
 
-        context_parts = []
+        parts = []
         for table in tables:
-            cursor.execute(f"PRAGMA table_info({table})")
-            cols = cursor.fetchall()
-            for col in cols:
-                col_name, col_type = col[1], col[2].upper()
-                if col_name == "id" or col_name.endswith("_id"):
-                    continue
-                if "DATE" in col_type or col_name.endswith("_date"):
-                    cursor.execute(f"SELECT MIN({col_name}), MAX({col_name}) FROM {table}")
-                    row = cursor.fetchone()
-                    if row[0]:
-                        context_parts.append(f"- {table}.{col_name} range: {row[0]} to {row[1]}")
-                elif "TEXT" in col_type:
-                    cursor.execute(f"SELECT DISTINCT {col_name} FROM {table} ORDER BY {col_name}")
-                    values = [r[0] for r in cursor.fetchall() if r[0]]
-                    if len(values) <= 20:
-                        context_parts.append(f"- {table}.{col_name} values: {', '.join(values)}")
+            columns, rows = self.execute(f"SELECT * FROM {table} LIMIT {sample_rows}")
+            header = " | ".join(columns)
+            lines = [header, "-" * len(header)]
+            for row in rows:
+                lines.append(" | ".join(str(v) for v in row))
+            parts.append(f"Sample from {table} ({sample_rows} rows):\n" + "\n".join(lines))
 
-        return "\n".join(context_parts) if context_parts else ""
+        return "\n\n".join(parts) if parts else ""
 
     def get_tables_data(self) -> dict:
         cursor = self.conn.cursor()

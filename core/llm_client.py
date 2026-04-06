@@ -150,7 +150,7 @@ class LLMClient:
         message = response.choices[0].message
 
         if not message.tool_calls:
-            return {"type": "error", "message": "LLM did not call any tool."}
+            return {"type": "error", "message": "LLM did not call any tool.", "system_prompt": system_prompt}
 
         tool_call = message.tool_calls[0]
         args = json.loads(tool_call.function.arguments)
@@ -160,6 +160,7 @@ class LLMClient:
                 "type": "sql",
                 "sql": args["sql"],
                 "explanation": args.get("explanation", ""),
+                "system_prompt": system_prompt,
             }
         elif tool_call.function.name == "ask_clarification":
             options = args.get("options", [])
@@ -169,6 +170,7 @@ class LLMClient:
                 "type": "clarification",
                 "question": args["question"],
                 "options": options,
+                "system_prompt": system_prompt,
             }
 
         return {"type": "error", "message": f"Unknown tool: {tool_call.function.name}"}

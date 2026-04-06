@@ -83,6 +83,7 @@ class NLToSQLSystem:
             "answer": interpretation["answer"],
             "row_count": len(rows),
             "confidence": confidence,
+            "system_prompt": llm_result.get("system_prompt", ""),
         }
 
     def _calculate_confidence(self, llm_confidence: float, rows: list) -> float:

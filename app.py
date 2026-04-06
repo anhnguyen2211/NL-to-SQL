@@ -183,6 +183,10 @@ def render_assistant_message(result: dict):
         with st.expander("Explanation"):
             st.markdown(result["explanation"])
 
+    if result.get("system_prompt"):
+        with st.expander("System Prompt"):
+            st.code(result["system_prompt"], language="markdown")
+
     col1, col2 = st.columns(2)
     with col1:
         st.caption(f"Rows: {result.get('row_count', 0)}")
