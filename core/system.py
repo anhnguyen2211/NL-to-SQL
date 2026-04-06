@@ -22,7 +22,16 @@ class NLToSQLSystem:
         try:
             llm_result = self.llm.generate_sql(question, schema)
         except Exception as e:
-            return self._error_response(question, f"LLM connection error: {e}")
+            error_msg = str(e)
+            if "401" in error_msg or "api_key" in error_msg.lower() or "authentication" in error_msg.lower():
+                return self._error_response(question, "Invalid or missing API key. Please check your API key in the Config tab.")
+            if "404" in error_msg or "not found" in error_msg.lower():
+                return self._error_response(question, "Model not found. Please check the model name in the Config tab.")
+            if "429" in error_msg or "rate limit" in error_msg.lower():
+                return self._error_response(question, "Rate limit exceeded. Please wait a moment and try again.")
+            if "connection" in error_msg.lower() or "connect" in error_msg.lower():
+                return self._error_response(question, "Cannot connect to LLM server. Please check the Base URL in the Config tab.")
+            return self._error_response(question, f"LLM error: {e}")
 
         # Step 2: Handle clarification
         if llm_result["type"] == "clarification":
