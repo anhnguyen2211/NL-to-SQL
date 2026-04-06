@@ -113,6 +113,9 @@ class DatabaseManager:
 
         return "\n\n".join(schema_parts)
 
+    # TODO: Add PII protection — mask or exclude sensitive columns (email, phone,
+    # address, etc.) before sending sample data to LLM. Consider a configurable
+    # column blacklist or auto-detection based on column names/patterns.
     def get_data_context(self, sample_rows: int = 3) -> str:
         """Show sample rows from each table so LLM understands the actual data format."""
         cursor = self.conn.cursor()
